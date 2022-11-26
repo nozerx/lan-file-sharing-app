@@ -21,7 +21,7 @@ func PrintLineByLine(name string) {
 		if line == "" {
 			exit = true
 		}
-		fmt.Println(line)
+		fmt.Print(line)
 	}
 
 }
