@@ -84,23 +84,28 @@ func discoverPeers(host host.Host, ctx context.Context) {
 	kad_dht := initDHT(host, ctx)
 	routingDiscovery := drouting.NewRoutingDiscovery(kad_dht)
 	dutil.Advertise(ctx, routingDiscovery, service)
+	fmt.Println("This may take some time")
 	isConnected := false
 	for !isConnected {
+		if incommingconnected {
+			fmt.Println("Incomming stream interut")
+			break
+		}
 		fmt.Println("TOTAL CONNECTION :", len(host.Network().Peers()))
 		peerChan, err := routingDiscovery.FindPeers(ctx, service)
 		if err != nil {
 			fmt.Println("Error while finding peers for service", service)
 		} else {
-			fmt.Println("Successfully found some peers")
+			// fmt.Println("Successfully found some peers")
 		}
 		for peerAddr := range peerChan {
-			fmt.Println("Trying to connect to peers")
+			// fmt.Println("Trying to connect to peers")
 			if peerAddr.ID == host.ID() {
 				continue
 			}
 			if incommingconnected {
 				fmt.Println("Incomming stream interupted")
-				return
+				break
 			}
 			err := host.Connect(ctx, peerAddr)
 			if err != nil {
@@ -114,7 +119,9 @@ func discoverPeers(host host.Host, ctx context.Context) {
 		}
 	}
 	fmt.Println("Done with peer discovery")
-	openNewStream(ctx, host)
+	if !incommingconnected {
+		openNewStream(ctx, host)
+	}
 }
 
 func newPubSub(ctx context.Context, host host.Host) (*pubsub.Subscription, *pubsub.Topic) {
@@ -147,7 +154,7 @@ func sendToNode(name string, rdwt *bufio.ReadWriter) {
 	} else {
 		fmt.Println("Successfully opened the file")
 	}
-	buffer := make([]byte, 4)
+	buffer := make([]byte, 10)
 	for {
 		_, err = file.Read(buffer)
 		if err == io.EOF {
@@ -176,8 +183,11 @@ func getFromNode(rdwt *bufio.ReadWriter) {
 	} else {
 		fmt.Println("Successfully opened the recieving file")
 	}
-	buffer := make([]byte, 4)
-	defer fmt.Println("Succesfully recieved the complete file")
+	buffer := make([]byte, 10)
+	defer func() {
+		fmt.Println("Succesfully recieved the complete file")
+		doneWriting = true
+	}()
 	for {
 		_, err := rdwt.Read(buffer)
 		if err == io.EOF {
@@ -195,6 +205,7 @@ func getFromNode(rdwt *bufio.ReadWriter) {
 
 func handleStream(stream network.Stream) {
 	incommingconnected = true
+	fmt.Println("Using default stream handler")
 	fmt.Println("Succeesfully started a new stream")
 	redWrite := bufio.NewReadWriter(bufio.NewReader(stream), bufio.NewWriter(stream))
 	if option == 1 {
@@ -202,15 +213,19 @@ func handleStream(stream network.Stream) {
 	} else {
 		go getFromNode(redWrite)
 	}
+	select {}
+
 }
 
 func openNewStream(ctx context.Context, host host.Host) {
+	fmt.Println("Using open stream")
 	stream, err := host.NewStream(ctx, recipientPeerId.ID, protocol.ID(proto))
 	if err != nil {
 		fmt.Println("Error while establishing a new stream to", recipientPeerId.ID)
 	} else {
 		fmt.Println("Successfull in establishing a new stream to", recipientPeerId.ID)
 	}
+
 	redWrite := bufio.NewReadWriter(bufio.NewReader(stream), bufio.NewWriter(stream))
 	if option == 1 {
 		go sendToNode("main.go", redWrite)
@@ -222,7 +237,7 @@ func openNewStream(ctx context.Context, host host.Host) {
 
 func main() {
 	host, ctx := establishNode()
-	opt := flag.Int("m", 1, "0 for read and 1 for write")
+	opt := flag.Int("m", 0, "0 for read and 1 for write")
 	flag.Parse()
 	option = *opt
 	if option == 1 {

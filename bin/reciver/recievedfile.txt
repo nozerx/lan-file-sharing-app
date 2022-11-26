@@ -139,4 +139,4 @@ func sendToNode(name string, rdwt *bufio.ReadWriter) {
 	} else {
 		fmt.Println("Successfully opened the file")
 	}
-	buffer := 
+	buffer := buff
